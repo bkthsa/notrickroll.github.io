@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Important Information</title>
+    <title>Important Update</title>
     <style>
         body {
             margin: 0;
@@ -23,7 +23,7 @@
             max-width: 100%;
             max-height: 100%;
         }
-        #loadingMessage {
+        #loadingOverlay {
             position: fixed;
             top: 0;
             left: 0;
@@ -53,100 +53,112 @@
     </style>
 </head>
 <body>
-    <div id="loadingMessage">
+    <div id="loadingOverlay">
         <div class="spinner"></div>
-        <div>Loading important content...</div>
+        <div>Preparing content...</div>
     </div>
 
     <div id="videoContainer">
-        <video id="unstoppableVideo" muted>
+        <video id="autoplayVideo" playsinline webkit-playsinline>
             <source src="video.mp4" type="video/mp4">
             Your browser does not support HTML5 video.
         </video>
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const video = document.getElementById('unstoppableVideo');
-            const loadingMessage = document.getElementById('loadingMessage');
+        (function() {
+            const video = document.getElementById('autoplayVideo');
+            const loadingOverlay = document.getElementById('loadingOverlay');
             
-            // Start with muted autoplay (allowed by browsers)
-            video.muted = true;
+            // Strategy 1: Try direct autoplay with sound first
             video.autoplay = true;
+            video.muted = false;
             
-            // Play immediately (muted)
-            video.play().catch(e => console.log("Initial muted play failed:", e));
+            // Some browsers require this for autoplay to work
+            video.playsInline = true;
             
-            // After a short delay, simulate user interaction to enable audio
-            setTimeout(() => {
-                // Create an invisible button that we'll "click" programmatically
-                const interactButton = document.createElement('button');
-                interactButton.style.position = 'fixed';
-                interactButton.style.top = '0';
-                interactButton.style.left = '0';
-                interactButton.style.width = '1px';
-                interactButton.style.height = '1px';
-                interactButton.style.opacity = '0';
-                interactButton.style.pointerEvents = 'none';
-                document.body.appendChild(interactButton);
-                
-                // Focus and click the button to satisfy browser interaction requirements
-                interactButton.focus();
-                interactButton.click();
-                
-                // Now we can unmute and play with sound
-                video.muted = false;
-                video.play().then(() => {
-                    // Hide loading message when video starts playing with sound
-                    loadingMessage.style.display = 'none';
-                    
-                    // Set up all the control blocking
-                    disableVideoControls();
-                }).catch(e => {
-                    console.log("Audio play failed:", e);
-                    // Fallback - show message to click to enable sound
-                    loadingMessage.innerHTML = '<div>Click anywhere to enable sound</div>';
-                    loadingMessage.style.cursor = 'pointer';
-                    loadingMessage.addEventListener('click', function() {
+            // Create a promise chain to attempt different autoplay strategies
+            const playAttempt = video.play().catch(error => {
+                // Strategy 2: If direct play fails, try with muted first then unmute
+                console.log('Autoplay with sound failed, trying muted fallback');
+                video.muted = true;
+                return video.play().then(() => {
+                    // After playback starts muted, try unmuting
+                    video.muted = false;
+                    return video.play();
+                }).catch(error => {
+                    // Strategy 3: Create a fake user interaction
+                    console.log('Muted autoplay worked but unmute failed, simulating click');
+                    return simulateUserInteraction().then(() => {
                         video.muted = false;
-                        video.play();
-                        loadingMessage.style.display = 'none';
-                        disableVideoControls();
+                        return video.play();
+                    });
+                });
+            }).catch(error => {
+                // Final fallback: Show manual click prompt
+                console.log('All autoplay attempts failed, showing manual prompt');
+                loadingOverlay.innerHTML = '<div>Click anywhere to start</div>';
+                loadingOverlay.style.cursor = 'pointer';
+                return new Promise((resolve) => {
+                    loadingOverlay.addEventListener('click', () => {
+                        video.muted = false;
+                        resolve(video.play());
                     }, { once: true });
                 });
-                
-                // Remove the invisible button
-                setTimeout(() => interactButton.remove(), 1000);
-            }, 1000); // 1 second delay before enabling audio
+            });
             
-            function disableVideoControls() {
-                // Disable right-click context menu
-                document.addEventListener('contextmenu', function(e) {
-                    e.preventDefault();
+            playAttempt.then(() => {
+                // Success! Hide loading overlay
+                loadingOverlay.style.display = 'none';
+                setupControlBlocking();
+            });
+            
+            function simulateUserInteraction() {
+                return new Promise((resolve) => {
+                    // Create invisible button
+                    const button = document.createElement('button');
+                    button.style.position = 'absolute';
+                    button.style.opacity = '0';
+                    button.style.pointerEvents = 'none';
+                    button.textContent = ' ';
+                    document.body.appendChild(button);
+                    
+                    // Focus and click it
+                    setTimeout(() => {
+                        button.focus();
+                        button.click();
+                        setTimeout(() => {
+                            button.remove();
+                            resolve();
+                        }, 100);
+                    }, 100);
                 });
+            }
+            
+            function setupControlBlocking() {
+                // Disable right-click menu
+                document.addEventListener('contextmenu', (e) => e.preventDefault());
                 
-                // Prevent keyboard controls
-                document.addEventListener('keydown', function(e) {
-                    if ([32, 37, 39, 75, 80].includes(e.keyCode)) { // Space, arrows, K, P
+                // Block keyboard controls
+                document.addEventListener('keydown', (e) => {
+                    if ([32, 37, 39, 75, 80].includes(e.keyCode)) {
                         e.preventDefault();
                     }
                 });
                 
-                // Loop the video when it ends
-                video.addEventListener('ended', function() {
+                // Prevent video click from pausing
+                video.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (video.paused) video.play();
+                });
+                
+                // Loop video when ended
+                video.addEventListener('ended', () => {
                     video.currentTime = 0;
                     video.play();
                 });
-                
-                // Prevent pausing by clicking on the video
-                video.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (video.paused) {
-                        video.play();
-                    }
-                });
             }
-        });
+        })();
     </script>
 </body>
 </html>
