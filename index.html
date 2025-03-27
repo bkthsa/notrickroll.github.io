@@ -1,1 +1,68 @@
-1
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unstoppable Video</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: black;
+        }
+        #videoContainer {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        video {
+            max-width: 100%;
+            max-height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div id="videoContainer">
+        <video id="unstoppableVideo" autoplay muted>
+            <source src="video.mp4" type="video/mp4">
+            Your browser does not support HTML5 video.
+        </video>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const video = document.getElementById('unstoppableVideo');
+            
+            // Force video to play (autoplay may be blocked by browsers)
+            video.play().catch(e => {
+                console.log("Autoplay was prevented:", e);
+                // Some browsers require interaction before playing
+                document.body.addEventListener('click', function() {
+                    video.play();
+                }, { once: true });
+            });
+            
+            // Disable right-click context menu
+            document.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+            });
+            
+            // Prevent keyboard controls
+            document.addEventListener('keydown', function(e) {
+                if ([32, 37, 39, 75, 80].includes(e.keyCode)) { // Space, arrows, K, P
+                    e.preventDefault();
+                }
+            });
+            
+            // Loop the video when it ends
+            video.addEventListener('ended', function() {
+                video.currentTime = 0;
+                video.play();
+            });
+        });
+    </script>
+</body>
+          </html>
